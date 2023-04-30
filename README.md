@@ -55,28 +55,28 @@ and then on 4 terminals you would have running one instance from each folder in 
 Terminal 0
 ------------------------
 cd /word/yafu0/yafu
-python 4 0 <scriptPubKey>
+python FACTOR.py 4 0 <scriptPubKey>
 ------------------------
 
 ------------------------
 Terminal 1
 ------------------------
 cd /word/yafu1/yafu
-python 4 4 <scriptPubKey>
+python FACTOR.py 4 4 <scriptPubKey>
 ------------------------
 
 ------------------------
 Terminal 2
 ------------------------
 cd /word/yafu2/yafu
-python 4 8 <scriptPubKey>
+python FACTOR.py 4 8 <scriptPubKey>
 ------------------------
 
 ------------------------
 Terminal 3
 ------------------------
 cd /word/yafu3/yafu
-python 4 12 <scriptPubKey>
+python FACTOR.py 4 12 <scriptPubKey>
 ------------------------
 
 ------------------------
