@@ -87,6 +87,7 @@ watch -n 1 renice_python.py
 
 ```
 
+Remember to update lines 73 and 74 in ``FACTOR.py`` with the rpc credentials to your FACT0RN daemon.
 
 There probably is a much better way of doing this and much better way to organize this entire process....feel free to contribute to make this better. I will merge improvements as they show up on the PR list.
 
