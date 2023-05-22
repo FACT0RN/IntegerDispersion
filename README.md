@@ -62,21 +62,21 @@ python FACTOR.py 4 0 <scriptPubKey>
 Terminal 1
 ------------------------
 cd /word/yafu1/yafu
-python FACTOR.py 4 4 <scriptPubKey>
+python FACTOR.py 4 1 <scriptPubKey>
 ------------------------
 
 ------------------------
 Terminal 2
 ------------------------
 cd /word/yafu2/yafu
-python FACTOR.py 4 8 <scriptPubKey>
+python FACTOR.py 4 2 <scriptPubKey>
 ------------------------
 
 ------------------------
 Terminal 3
 ------------------------
 cd /word/yafu3/yafu
-python FACTOR.py 4 12 <scriptPubKey>
+python FACTOR.py 4 3 <scriptPubKey>
 ------------------------
 
 ------------------------
