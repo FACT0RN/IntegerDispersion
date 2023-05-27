@@ -514,8 +514,6 @@ class CBlock(ctypes.Structure):
         if None:
             raise ValueError('No scriptPubKey was given.')
 
-        START = time()
-        
         #Get parameters and candidate block
         block = None
         param = getParams()
@@ -552,7 +550,7 @@ class CBlock(ctypes.Structure):
         global siever
 
         for nonce in Seeds:
-            start = time()
+            START = time()
             #print("Nonce: ", nonce, flush=True)
             #Set the nonce
             block.nNonce = nonce
@@ -678,21 +676,22 @@ gHash = ctypes.CDLL("./gHash.so").gHash
 gHash.restype = uint1024
 
 def mine():
+    if ( len(sys.argv) != 4):
+        print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")
+        sys.exit(1)
+    
+    if ( len(sys.argv[3]) != 44):
+        print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
+        sys.exit(2)
+    
+    load_levels()
+    scriptPubKey = sys.argv[3]
+    cpu_thread_offset = int(sys.argv[2]) 
+    hthreads = int(sys.argv[1]) 
+
     while True:
         B = CBlock()
-
-        if ( len(sys.argv) != 4):
-            print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")
-            sys.exit(1)
-
-        if ( len(sys.argv[3]) != 44):
-            print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
-            sys.exit(2)
-
-        load_levels()
-        scriptPubKey = sys.argv[3]
-        cpu_thread_offset = int(sys.argv[2]) 
-        hthreads = int(sys.argv[1]) 
+        START = time()
 
         block = B.mine( scriptPubKey = scriptPubKey, hthreads = hthreads, cpu_thread_offset = cpu_thread_offset )
         if block:
