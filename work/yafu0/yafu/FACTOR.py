@@ -583,8 +583,6 @@ class CBlock(ctypes.Structure):
             #Make sure the candidates have exactly nBits as required by this block
             candidates = [ k for k in candidates if k.bit_length() == block.nBits ] #This line requires python >= 3.10
             candidates = [ k for k in candidates if not isprime(k)                ]
-
-            kstart = time()
             check_race = 0
            
             #Split candidates into  batches of 10 at a time
@@ -595,10 +593,6 @@ class CBlock(ctypes.Structure):
                     print("Race was lost. Next block.")
                     print("Total Block Mining Runtime: ", time() - START, " Seconds." )
                     return None
-
-                #Note: the block requires the smaller of the two prime factors to be submitted.
-                fstart  = time()
-
 
                 #Compute taskset
                 taskset = ""
@@ -695,7 +689,7 @@ def mine():
 
         block = B.mine( scriptPubKey = scriptPubKey, hthreads = hthreads, cpu_thread_offset = cpu_thread_offset )
         if block:
-            if rpc_getblockcount() >= block.blocktemplate["height"]:
+            if rpc_getblockcount() > block.blocktemplate["height"]:
                 print("Race was lost. Next block.")
                 print("Total Block Mining Runtime: ", time() - START, " Seconds." )
                 continue
