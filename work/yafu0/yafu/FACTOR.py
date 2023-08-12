@@ -601,11 +601,11 @@ class CBlock(ctypes.Structure):
                     if idx2 != (hthreads - 1):
                         taskset += "," 
 
-                run_command  = "taskset -c " + taskset + " ./yafu -one -plan custom -pretest_ratio "+ str( 69.0/block.nBits)  
-                run_command += " -work 25  -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -of pqFile.txt \"factor("+str(cand)+")\" "
+                run_command  = "taskset -c " + taskset + " ./yafu -one -pretest_ratio "+ str( 0.32 )  
+                run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -of pqFile.txt \"factor("+str(cand)+")\" "
                 print(run_command)
                 startf = time()
-                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 60*15 )
+                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 60*5 )
                 endf = time()
                 parse = [ line for line in parse.stdout.decode('utf-8').split("\n") if "=" in line ]
                 tmp = []
