@@ -601,7 +601,7 @@ class CBlock(ctypes.Structure):
                     if idx2 != (hthreads - 1):
                         taskset += "," 
 
-                run_command  = "taskset -c " + taskset + " ./yafu -one -pretest_ratio "+ str( 0.32 )  
+                run_command  = "taskset -c " + taskset + " ./yafu -one -plan custom  -pretest_ratio "+ str( 0.32 )  
                 run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -of pqFile.txt \"factor("+str(cand)+")\" "
                 print(run_command)
                 startf = time()
