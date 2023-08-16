@@ -514,8 +514,6 @@ class CBlock(ctypes.Structure):
         if None:
             raise ValueError('No scriptPubKey was given.')
 
-        START = time()
-        
         #Get parameters and candidate block
         block = None
         param = getParams()
@@ -552,7 +550,7 @@ class CBlock(ctypes.Structure):
         global siever
 
         for nonce in Seeds:
-            start = time()
+            START = time()
             #print("Nonce: ", nonce, flush=True)
             #Set the nonce
             block.nNonce = nonce
@@ -585,8 +583,6 @@ class CBlock(ctypes.Structure):
             #Make sure the candidates have exactly nBits as required by this block
             candidates = [ k for k in candidates if k.bit_length() == block.nBits ] #This line requires python >= 3.10
             candidates = [ k for k in candidates if not isprime(k)                ]
-
-            kstart = time()
             check_race = 0
            
             #Split candidates into  batches of 10 at a time
@@ -598,10 +594,6 @@ class CBlock(ctypes.Structure):
                     print("Total Block Mining Runtime: ", time() - START, " Seconds." )
                     return None
 
-                #Note: the block requires the smaller of the two prime factors to be submitted.
-                fstart  = time()
-
-
                 #Compute taskset
                 taskset = ""
                 for idx2 in range(hthreads):
@@ -609,11 +601,11 @@ class CBlock(ctypes.Structure):
                     if idx2 != (hthreads - 1):
                         taskset += "," 
 
-                run_command  = "taskset -c " + taskset + " ./yafu -one -plan custom -pretest_ratio "+ str( 69.0/block.nBits)  
-                run_command += " -work 25  -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -of pqFile.txt \"factor("+str(cand)+")\" "
+                run_command  = "taskset -c " + taskset + " ./yafu -one -plan custom  -pretest_ratio "+ str( 0.32 )  
+                run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -of pqFile.txt \"factor("+str(cand)+")\" "
                 print(run_command)
                 startf = time()
-                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 60*15 )
+                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 60*5 )
                 endf = time()
                 parse = [ line for line in parse.stdout.decode('utf-8').split("\n") if "=" in line ]
                 tmp = []
@@ -678,25 +670,26 @@ gHash = ctypes.CDLL("./gHash.so").gHash
 gHash.restype = uint1024
 
 def mine():
+    if ( len(sys.argv) != 4):
+        print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")
+        sys.exit(1)
+    
+    if ( len(sys.argv[3]) != 44):
+        print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
+        sys.exit(2)
+    
+    load_levels()
+    scriptPubKey = sys.argv[3]
+    cpu_thread_offset = int(sys.argv[2]) 
+    hthreads = int(sys.argv[1]) 
+
     while True:
         B = CBlock()
-
-        if ( len(sys.argv) != 4):
-            print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")
-            sys.exit(1)
-
-        if ( len(sys.argv[3]) != 44):
-            print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
-            sys.exit(2)
-
-        load_levels()
-        scriptPubKey = sys.argv[3]
-        cpu_thread_offset = int(sys.argv[2]) 
-        hthreads = int(sys.argv[1]) 
+        START = time()
 
         block = B.mine( scriptPubKey = scriptPubKey, hthreads = hthreads, cpu_thread_offset = cpu_thread_offset )
         if block:
-            if rpc_getblockcount() >= block.blocktemplate["height"]:
+            if rpc_getblockcount() > block.blocktemplate["height"]:
                 print("Race was lost. Next block.")
                 print("Total Block Mining Runtime: ", time() - START, " Seconds." )
                 continue

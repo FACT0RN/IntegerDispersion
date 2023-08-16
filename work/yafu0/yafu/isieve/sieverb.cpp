@@ -18,6 +18,7 @@ int main( int argc, char *argv[] )
     }
 
     int bits = atoi(argv[1]);
+    bits += 2;
    
     if (bits == 0){
         std::cout << "Usage:  sieverb <level>\nWhere level is an integer greater than 0.\n";
