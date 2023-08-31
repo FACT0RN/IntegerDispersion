@@ -27,6 +27,7 @@ import base58
 import sympy as sp
 import secrets as st
 from random import shuffle
+import statistics
 
 #Attibution note: the Bitcoin RPC components here are taken
 #                 from publicly available sources and are not
@@ -38,6 +39,9 @@ siev = None
 
 #Determine stopping point, parametr <= 35.
 MAX_SIEVE_LEVEL = 27
+
+BLOCK_SIZE = 50
+BLOCK_TIME = [0] * BLOCK_SIZE
 
 def load_levels():
     global siever
@@ -172,6 +176,33 @@ def rpc_submitblock(block_submission):
 
 def rpc_getblockcount():
     return rpc( "getblockcount" )
+
+def rpc_getblockhash(height):
+    return rpc( "getblockhash", [height] )
+
+def rpc_getblock( Hash ):
+    return rpc( "getblock", [Hash, 2] )
+
+def block_who( height ):
+    bhash = rpc_getblockhash(height)
+    block = rpc_getblock(bhash)
+    wallet = block['tx'][0]['vout'][0]['scriptPubKey']['address']
+    mtime = block['mediantime']
+
+    return mtime
+
+
+
+def get_blocktime( ):
+    TOP = rpc_getblockcount()
+    data = []
+    global BLOCK_SIZE
+    k = 0
+
+    for height in range(TOP - BLOCK_SIZE, TOP ):
+        BLOCK_TIME[ k ] = block_who(height)
+        k += 1
+
 
 ################################################################################
 # Representation Conversion Utility Functions
@@ -548,6 +579,17 @@ class CBlock(ctypes.Structure):
         #Siev filter out multiples of small primes
         global siev
         global siever
+        global BLOCK_TIME
+        T = [t - s for s, t in zip(BLOCK_TIME, BLOCK_TIME[1:])]
+        avg = sum(T)/len(T)
+        std = statistics.stdev(T)
+        timeout = avg + 0*std
+
+        print("Recent Block Solving Stats ( Last ", str(BLOCK_SIZE), " Blocks )")
+        print("    Avg Solve Time:", avg , " Seconds. ", avg/60, " Mins." )
+        print("Standard Deviation:", std , " Seconds. ", std/60, " Mins." )
+        print("      Yafu Timeout:","avg + 0*std ~ ", timeout, "Seconds or ", timeout//60, "minutes", timeout%60, "Seconds."  )
+        
 
         for nonce in Seeds:
             START = time()
@@ -567,18 +609,26 @@ class CBlock(ctypes.Structure):
             
             #Candidates for admissible semiprime
             candidates = [ n for n in range( wMIN, wMAX) if gcd( n, 2*3*5*7*11*13*17*19*23*29*31 ) == 1  ] 
-            
+            total_time = 0
+ 		           
             #Further sieving
             if siever:
                 keys = list(siever.keys())
                 keys.sort() 
                 keys = [ k for k in keys if k <= MAX_SIEVE_LEVEL] #Needs to be adjusted as difficulty level changes.
 
+
                 for level in keys:
+                    start1 = time()
+                    lc = len(candidates)
                     candidates = [ n for n in candidates if gcd( n, siever[level]  ) == 1  ]
+                    print("Level", level,"sieve time: ", "{:>0.6f}".format( time() - start1 ), " Seconds.    Candidates removed: ",  lc - len(candidates),  )
+                    total_time += time() - start1
 
             elif siev:
                     candidates = [ n for n in candidates if gcd( n, siev  ) == 1  ] 
+
+            print( "Total leveled sieving time:", total_time, " Seconds.")
 
             #Make sure the candidates have exactly nBits as required by this block
             candidates = [ k for k in candidates if k.bit_length() == block.nBits ] #This line requires python >= 3.10
@@ -589,6 +639,7 @@ class CBlock(ctypes.Structure):
             shuffle(candidates)
  
             for idx,cand in enumerate( candidates):
+                parse = subprocess.run( "pkill yafu", capture_output=True, shell=True )
                 if rpc_getblockcount() >= block.blocktemplate["height"]:
                     print("Race was lost. Next block.")
                     print("Total Block Mining Runtime: ", time() - START, " Seconds." )
@@ -601,11 +652,15 @@ class CBlock(ctypes.Structure):
                     if idx2 != (hthreads - 1):
                         taskset += "," 
 
-                run_command  = "taskset -c " + taskset + " ./yafu -one -plan custom  -pretest_ratio "+ str( 0.30 )  
-                run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -xover 120 -snfs_xover 125 -of pqFile.txt \"factor(" + str(cand) + ")\" "
+                run_command  = "rm -rf nfs* siqs* tunerels.out rel* && taskset -c " + taskset + " ./yafu -one -plan custom  -pretest_ratio "+ str( 0.31 )  
+                run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -xover 120 -snfs_xover 115 -of pqFile.txt \"factor(" + str(cand) + ")\" "
                 print(run_command)
                 startf = time()
-                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 60*10 )
+                parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = timeout )
+                for line in parse.stdout.decode('utf-8').split("\n"):
+                    print(line)
+                print()
+
                 endf = time()
                 parse = [ line for line in parse.stdout.decode('utf-8').split("\n") if "=" in line ]
                 tmp = []
@@ -622,7 +677,12 @@ class CBlock(ctypes.Structure):
 
                 #Check if there are any winners in this batch
                 factorData = []
-                print("Candidate: ", str(idx) +"/" + str(len(candidates)), "Factoring Time: ", endf - startf, flush=True )
+                print("Candidate: ", str(idx) +"/" + str(len(candidates)), "Factor count:  ", len(parse)-1 , "Factoring Time: ", endf - startf, flush=True )
+                print(parse)
+                print()
+                if len(parse) == 2:
+                    exit(1)
+
                 if len(parse) == 3:
                     p,q = int( parse[0].split("=")[1].strip()  ), int(parse[1].split("=")[1].strip())
                     n   = p*q
@@ -671,19 +731,20 @@ gHash.restype = uint1024
 
 def mine():
     if ( len(sys.argv) != 4):
-        print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")
+        print("Usage: python FACTOR.py <threads> <cpu_core_offset> \"ScriptPubKey\"")        
         sys.exit(1)
-    
+
     if ( len(sys.argv[3]) != 44):
         print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
         sys.exit(2)
     
-    load_levels()
+    hthreads = int(sys.argv[1]) 
     scriptPubKey = sys.argv[3]
     cpu_thread_offset = int(sys.argv[2]) 
-    hthreads = int(sys.argv[1]) 
+    load_levels()
 
     while True:
+        get_blocktime()
         B = CBlock()
         START = time()
 
