@@ -52,10 +52,10 @@ def load_levels():
     filenames = [ level_file for level_file 
             in next(os.walk("isieve/"), (None, None, []))[2]
             if "primorial_level_" in level_file ]
-    
+
     #Order in ascending order
     filenames.sort( key= lambda x: int( x.split("_")[-1].split(".")[0] ) )
-    
+
     if filenames:
         siever = {}
         START = time()
@@ -64,12 +64,12 @@ def load_levels():
             if level > MAX_SIEVE_LEVEL:
                 break
             start = time()
-            f = open( "isieve/"+File, "r")
+            f = open(f"isieve/{File}", "r")
             line = f.readlines()[0]
             siever[level] = mpz( int(line,16) )
             print("Level loaded: ",level, "  | ", time() - start, " Seconds.")
         print("Total time: ", time() - START, " Seconds.")
-    
+
     else:
         siev = mpz( sp.factorial(10000))
     
@@ -92,10 +92,7 @@ class uint256(ctypes.Structure):
     _fields_=[("data", ctypes.c_uint64 * 4 )]
     
 def uint256ToInt( m ):
-    ans = 0    
-    for idx,a in enumerate(m):
-        ans += a << (idx*64)
-    return ans
+    return sum(a << (idx*64) for idx, a in enumerate(m))
 
 def uint1024ToInt( m ):
     ans = 0    
@@ -123,12 +120,10 @@ def IntToUint1024( m ):
 def hashToArray( Hash ):
     if Hash == 0:
         return [0,0,0,0]
-    
+
     number = int(Hash,16)
     MASK = (1 << 64) - 1
-    arr = [ ( number >> 64*(jj) )&MASK for jj in range(0, 4) ]    
-    
-    return arr
+    return [ ( number >> 64*(jj) )&MASK for jj in range(0, 4) ]
 
 
 ################################################################################
@@ -148,7 +143,7 @@ def rpc(method, params=None):
 
     rpc_id = random.getrandbits(32)
     data = json.dumps({"id": rpc_id, "method": method, "params": params}).encode()
-    auth = base64.encodebytes((RPC_USER + ":" + RPC_PASS).encode()).decode().strip()
+    auth = base64.encodebytes(f"{RPC_USER}:{RPC_PASS}".encode()).decode().strip()
 
     request = urllib.request.Request(RPC_URL, data, {"Authorization": "Basic {:s}".format(auth)})
 
@@ -187,9 +182,7 @@ def block_who( height ):
     bhash = rpc_getblockhash(height)
     block = rpc_getblock(bhash)
     wallet = block['tx'][0]['vout'][0]['scriptPubKey']['address']
-    mtime = block['mediantime']
-
-    return mtime
+    return block['mediantime']
 
 
 
@@ -197,11 +190,8 @@ def get_blocktime( ):
     TOP = rpc_getblockcount()
     data = []
     global BLOCK_SIZE
-    k = 0
-
-    for height in range(TOP - BLOCK_SIZE, TOP ):
+    for k, height in enumerate(range(TOP - BLOCK_SIZE, TOP )):
         BLOCK_TIME[ k ] = block_who(height)
-        k += 1
 
 
 ################################################################################
@@ -231,11 +221,11 @@ def int2varinthex(value):
     if value < 0xfd:
         return int2lehex(value, 1)
     elif value <= 0xffff:
-        return "fd" + int2lehex(value, 2)
+        return f"fd{int2lehex(value, 2)}"
     elif value <= 0xffffffff:
-        return "fe" + int2lehex(value, 4)
+        return f"fe{int2lehex(value, 4)}"
     else:
-        return "ff" + int2lehex(value, 8)
+        return f"ff{int2lehex(value, 8)}"
 
 def bitcoinaddress2hash160(addr):
     """
@@ -248,11 +238,8 @@ def bitcoinaddress2hash160(addr):
 
     table = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
 
-    hash160 = 0
     addr = addr[::-1]
-    for i, c in enumerate(addr):
-        hash160 += (58 ** i) * table.find(c)
-
+    hash160 = sum((58 ** i) * table.find(c) for i, c in enumerate(addr))
     # Convert number to 50-byte ASCII Hex string
     hash160 = "{:050x}".format(hash160)
 
@@ -278,16 +265,16 @@ def tx_encode_coinbase_height(height):
 
 def make_P2PKH_from_public_key( publicKey ):
     from hashlib import sha256 as sha256
-   
+
     address   = sha256( bytes.fromhex( publicKey) ).hexdigest()
     address   = hashlib.new('ripemd160', bytes.fromhex( address ) ).hexdigest()
-    address   = bytes.fromhex("00" + address)
+    address = bytes.fromhex(f"00{address}")
     addressCS = sha256(                address     ).hexdigest()
     addressCS = sha256( bytes.fromhex( addressCS ) ).hexdigest()
     addressCS = addressCS[:8]
     address   = address.hex() + addressCS
     address   = base58.b58encode( bytes.fromhex(address))
-    
+
     return address
     
 def tx_make_coinbase(coinbase_script, pubkey_script, value, height, wit_commitment ):
@@ -304,9 +291,7 @@ def tx_make_coinbase(coinbase_script, pubkey_script, value, height, wit_commitme
     # See https://en.bitcoin.it/wiki/Transaction
     coinbase_script = tx_encode_coinbase_height(height) + coinbase_script
 
-    tx = ""
-    # version
-    tx += "02000000"
+    tx = "" + "02000000"
     # in-counter
     tx += "01"
     # input[0] prev hash
@@ -333,7 +318,7 @@ def tx_make_coinbase(coinbase_script, pubkey_script, value, height, wit_commitme
     # witness commitment script len
     tx += int2varinthex(len(wit_commitment) // 2)
     # witness commitment script
-    tx += wit_commitment    
+    tx += wit_commitment
     # lock-time
     tx += "00000000"
 
@@ -370,7 +355,7 @@ def tx_compute_merkle_root(tx_hashes):
 
         tx_hashes_new = []
 
-        for i in range(len(tx_hashes) // 2):
+        for _ in range(len(tx_hashes) // 2):
             # Concatenate the next two
             concat = tx_hashes.pop(0) + tx_hashes.pop(0)
             # Hash them
@@ -460,22 +445,22 @@ class CBlock(ctypes.Structure):
         nVersion            = struct.pack("<L", self.nVersion).hex()
         nTime               = struct.pack("<L", self.nTime).hex()
         nBits               = struct.pack("<H", self.nBits).hex()
-        
+
         #Reverse bytes of the hashes as little-Endian is needed for bitcoind
         nP1                 = bytes.fromhex(nP1)[::-1].hex()
-        hashPrevBlock       = bytes.fromhex(hashPrevBlock)[::-1].hex() 
+        hashPrevBlock       = bytes.fromhex(hashPrevBlock)[::-1].hex()
         hashMerkleRoot      = bytes.fromhex(hashMerkleRoot)[::-1].hex()
-        
+
         s  = "CBlock class: \n"
-        s += "                    nP1: " + str(nP1)                 + "\n"
-        s += "          hashPrevBlock: " + str(hashPrevBlock)       + "\n"
-        s += "         hashMerkleRoot: " + str(hashMerkleRoot)      + "\n"
-        s += "                 nNonce: " + str(nNonce)              + "\n"
-        s += "                wOffset: " + str(wOffset)             + "\n"
-        s += "               nVersion: " + str(nVersion)            + "\n"
-        s += "                  nTime: " + str(nTime)               + "\n"
-        s += "                  nBits: " + str(nBits)               + "\n"
-    
+        s += f"                    nP1: {str(nP1)}" + "\n"
+        s += f"          hashPrevBlock: {str(hashPrevBlock)}" + "\n"
+        s += f"         hashMerkleRoot: {str(hashMerkleRoot)}" + "\n"
+        s += f"                 nNonce: {str(nNonce)}" + "\n"
+        s += f"                wOffset: {str(wOffset)}" + "\n"
+        s += f"               nVersion: {str(nVersion)}" + "\n"
+        s += f"                  nTime: {str(nTime)}" + "\n"
+        s += f"                  nBits: {str(nBits)}" + "\n"
+
         return s
     
     def int2lehex(self, value, width):
@@ -502,11 +487,11 @@ class CBlock(ctypes.Structure):
         if value < 0xfd:
             return self.int2lehex(value, 1)
         elif value <= 0xffff:
-            return "fd" + self.int2lehex(value, 2)
+            return f"fd{self.int2lehex(value, 2)}"
         elif value <= 0xffffffff:
-            return "fe" + self.int2lehex(value, 4)
+            return f"fe{self.int2lehex(value, 4)}"
         else:
-            return "ff" + self.int2lehex(value, 8)
+            return f"ff{self.int2lehex(value, 8)}"
 
     def prepare_block_for_submission(self):
         #Get block header
@@ -542,39 +527,37 @@ class CBlock(ctypes.Structure):
 ##                                   Mining                                                 ##
 ##############################################################################################
     def mine(self, coinbase_message = "", scriptPubKey = None, hthreads = 1, cpu_thread_offset = 0):
-        if None:
-            raise ValueError('No scriptPubKey was given.')
-
         #Get parameters and candidate block
         block = None
         param = getParams()
-        
-        block = self.get_next_block_to_work_on()
 
-        # Add an coinbase transaction to the block template transactions
-        coinbase_tx = {}
+        block = self.get_next_block_to_work_on()
 
         # Update the coinbase transaction with the new extra nonce
         coinbase_script = coinbase_message
-        coinbase_tx['data'] = tx_make_coinbase( coinbase_script, 
-                                                scriptPubKey, 
-                                                block.blocktemplate['coinbasevalue'], 
-                                                block.blocktemplate['height'], 
-                                                block.blocktemplate.get("default_witness_commitment") )
+        coinbase_tx = {
+            'data': tx_make_coinbase(
+                coinbase_script,
+                scriptPubKey,
+                block.blocktemplate['coinbasevalue'],
+                block.blocktemplate['height'],
+                block.blocktemplate.get("default_witness_commitment"),
+            )
+        }
         coinbase_tx['txid'] = tx_compute_hash(coinbase_tx['data'])
-        
+
         #Add transaction to our block
         block.blocktemplate['transactions'].insert(0, coinbase_tx)
-       
+
         # Recompute the merkle root
-        block.blocktemplate['merkleroot'] = tx_compute_merkle_root([tx['txid'] for tx in block.blocktemplate['transactions']])   
+        block.blocktemplate['merkleroot'] = tx_compute_merkle_root([tx['txid'] for tx in block.blocktemplate['transactions']])
         merkleRoot = uint256()
-        merkleRoot = (ctypes.c_uint64 * 4)(*hashToArray( block.blocktemplate["merkleroot"] )) 
+        merkleRoot = (ctypes.c_uint64 * 4)(*hashToArray( block.blocktemplate["merkleroot"] ))
         block.hashMerkleRoot = merkleRoot
 
         #Iterate through a small set of random nonces
         #Probability of finding a good semiprime is extremely high
-        Seeds = [ st.randbelow( 1 << 64 ) for i in range(10)] 
+        Seeds = [st.randbelow( 1 << 64 ) for _ in range(10)] 
 
         #Siev filter out multiples of small primes
         global siev
@@ -585,11 +568,13 @@ class CBlock(ctypes.Structure):
         std = statistics.stdev(T)
         timeout = avg + 0*std
 
-        print("Recent Block Solving Stats ( Last ", str(BLOCK_SIZE), " Blocks )")
+        print("Recent Block Solving Stats ( Last ", BLOCK_SIZE, " Blocks )")
         print("    Avg Solve Time:", avg , " Seconds. ", avg/60, " Mins." )
         print("Standard Deviation:", std , " Seconds. ", std/60, " Mins." )
         print("      Yafu Timeout:","avg + 0*std ~ ", timeout, "Seconds or ", timeout//60, "minutes", timeout%60, "Seconds."  )
-        
+
+
+        check_race = 0
 
         for nonce in Seeds:
             START = time()
@@ -603,18 +588,17 @@ class CBlock(ctypes.Structure):
 
             #Compute limit range around W
             #print("nBits: ", block.nBits )
-            wInterval = 16 * block.nBits 
+            wInterval = 16 * block.nBits
             wMAX = int(W + wInterval)
             wMIN = int(W - wInterval) 
-            
+
             #Candidates for admissible semiprime
-            candidates = [ n for n in range( wMIN, wMAX) if gcd( n, 2*3*5*7*11*13*17*19*23*29*31 ) == 1  ] 
+            candidates = [ n for n in range( wMIN, wMAX) if gcd( n, 2*3*5*7*11*13*17*19*23*29*31 ) == 1  ]
             total_time = 0
- 		           
+
             #Further sieving
             if siever:
-                keys = list(siever.keys())
-                keys.sort() 
+                keys = sorted(siever.keys())
                 keys = [ k for k in keys if k <= MAX_SIEVE_LEVEL] #Needs to be adjusted as difficulty level changes.
 
 
@@ -633,12 +617,10 @@ class CBlock(ctypes.Structure):
             #Make sure the candidates have exactly nBits as required by this block
             candidates = [ k for k in candidates if k.bit_length() == block.nBits ] #This line requires python >= 3.10
             candidates = [ k for k in candidates if not isprime(k)                ]
-            check_race = 0
-           
             #Split candidates into  batches of 10 at a time
             shuffle(candidates)
- 
-            for idx,cand in enumerate( candidates):
+
+            for idx, cand in enumerate( candidates):
                 parse = subprocess.run( "pkill yafu", capture_output=True, shell=True )
                 if rpc_getblockcount() >= block.blocktemplate["height"]:
                     print("Race was lost. Next block.")
@@ -652,8 +634,13 @@ class CBlock(ctypes.Structure):
                     if idx2 != (hthreads - 1):
                         taskset += "," 
 
-                run_command  = "rm -rf nfs* siqs* tunerels.out rel* && taskset -c " + taskset + " ./yafu -one -plan custom  -pretest_ratio "+ str( 0.31 )  
-                run_command += " -threads " + str(hthreads) + " -lathreads " + str(hthreads) + " -xover 120 -snfs_xover 115 -of pqFile.txt \"factor(" + str(cand) + ")\" "
+                run_command = f"rm -rf nfs* siqs* tunerels.out rel* && taskset -c {taskset} ./yafu -one -plan custom  -pretest_ratio 0.31"
+                run_command += (
+                    f" -threads {str(hthreads)} -lathreads {str(hthreads)}"
+                    + " -xover 120 -snfs_xover 115 -of pqFile.txt \"factor("
+                    + str(cand)
+                    + ")\" "
+                )
                 print(run_command)
                 startf = time()
                 parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = timeout )
@@ -677,23 +664,30 @@ class CBlock(ctypes.Structure):
 
                 #Check if there are any winners in this batch
                 factorData = []
-                print("Candidate: ", str(idx) +"/" + str(len(candidates)), "Factor count:  ", len(parse)-1 , "Factoring Time: ", endf - startf, flush=True )
+                print(
+                    "Candidate: ",
+                    f"{str(idx)}/{len(candidates)}",
+                    "Factor count:  ",
+                    len(parse) - 1,
+                    "Factoring Time: ",
+                    endf - startf,
+                    flush=True,
+                )
                 print(parse)
                 print()
                 if len(parse) == 2:
                     exit(1)
 
-                if len(parse) == 3:
-                    p,q = int( parse[0].split("=")[1].strip()  ), int(parse[1].split("=")[1].strip())
-                    n   = p*q
-                    print("|p1|_2=",p.bit_length(),"|p2|_2=",q.bit_length(), "|n|_2",n.bit_length())
-                    if ( p.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
-                        if ( q.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
-                            if( (isprime(p) == isprime(q)) and (isprime(p) == True) ):
-                                factorData.append( [n,p,q] )
-                else:
+                if len(parse) != 3:
                     continue
 
+                p,q = int( parse[0].split("=")[1].strip()  ), int(parse[1].split("=")[1].strip())
+                n   = p*q
+                print("|p1|_2=",p.bit_length(),"|p2|_2=",q.bit_length(), "|n|_2",n.bit_length())
+                if ( p.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
+                    if ( q.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
+                        if( (isprime(p) == isprime(q)) and (isprime(p) == True) ):
+                            factorData.append( [n,p,q] )
                 for solution in factorData:
                     solution.sort()
                     factors = [ solution[0], solution[1] ]
@@ -737,10 +731,10 @@ def mine():
     if ( len(sys.argv[3]) != 44):
         print("ScriptPubKey must be 44 characters long. If this limit does not suit you, you know enough to fix it.")
         sys.exit(2)
-    
-    hthreads = int(sys.argv[1]) 
+
+    hthreads = int(sys.argv[1])
     scriptPubKey = sys.argv[3]
-    cpu_thread_offset = int(sys.argv[2]) 
+    cpu_thread_offset = int(sys.argv[2])
     load_levels()
 
     while True:
@@ -748,8 +742,11 @@ def mine():
         B = CBlock()
         START = time()
 
-        block = B.mine( scriptPubKey = scriptPubKey, hthreads = hthreads, cpu_thread_offset = cpu_thread_offset )
-        if block:
+        if block := B.mine(
+            scriptPubKey=scriptPubKey,
+            hthreads=hthreads,
+            cpu_thread_offset=cpu_thread_offset,
+        ):
             if rpc_getblockcount() > block.blocktemplate["height"]:
                 print("Race was lost. Next block.")
                 print("Total Block Mining Runtime: ", time() - START, " Seconds." )
