@@ -14,7 +14,7 @@ def get_yafu_pids():
 def renice_pids( pids = []):
 
     for pid in pids:
-        run_command = "sudo renice -15 -p " + pid
+        run_command = f"sudo renice -15 -p {pid}"
         parse = subprocess.run( run_command, capture_output=True, shell=True, timeout = 10 )
         parse = parse.stdout.decode('utf-8').split("\n")
 
