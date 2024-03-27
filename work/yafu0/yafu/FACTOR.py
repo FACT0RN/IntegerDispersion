@@ -688,7 +688,6 @@ class CBlock(ctypes.Structure):
                     n   = p*q
                     print("|p1|_2=",p.bit_length(),"|p2|_2=",q.bit_length(), "|n|_2",n.bit_length())
                     if ( p.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
-                        if ( q.bit_length() ==  ( block.nBits//2 + (block.nBits&1)) ):
                             if( (isprime(p) == isprime(q)) and (isprime(p) == True) ):
                                 factorData.append( [n,p,q] )
                 else:
